@@ -84,7 +84,7 @@
 </template>
 
 <script>
-const BASE_URL = 'https://your-backend-host/api';
+const BASE_URL = 'http://127.0.0.1:8820';
 
 export default {
   data() {
@@ -106,8 +106,15 @@ export default {
       this.loading = true;
       uni.request({
         url: `${BASE_URL}/devices`,
-        method: 'GET',
+        method: 'POST',
+		header: {
+		          'Content-Type': 'application/json' 
+		          // 可选：如果接口需要token，添加请求头
+		          // 'Authorization': 'Bearer ' + uni.getStorageSync('token')
+		        },
+		data:{uid:'asccde11111'},
         success: (res) => {
+			console.info(res);
           if (res.statusCode === 200 && Array.isArray(res.data)) {
             this.devices = res.data;
           } else {
@@ -117,11 +124,12 @@ export default {
             });
           }
         },
-        fail: () => {
-          uni.showToast({
-            title: '获取设备失败',
-            icon: 'none'
-          });
+        fail: (err) => {
+		  console.error('请求失败：', err);
+		  uni.showToast({
+			title: '获取设备失败',
+			icon: 'none'
+		  });
         },
         complete: () => {
           this.loading = false;
@@ -140,7 +148,7 @@ export default {
           uni.request({
             url: `${BASE_URL}/devices/bind`,
             method: 'POST',
-            data: { 'uid':'','sn':result },
+            data: { uid:'',sn:result },
             success: (resp) => {			
 			  console.log('扫码成功：', resp);
               if (resp.statusCode === 200) {
