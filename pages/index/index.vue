@@ -131,13 +131,18 @@ export default {
     handleAddDevice() {
       uni.scanCode({
         onlyFromCamera: true,
+		// 扫码类型：qrCode（二维码）、barCode（条形码），默认都支持
+		scanType:['qrCode'],
         success: (res) => {
-          const code = res.result;
+		  console.log('扫码成功：', res);
+		  //设备id xxxx
+          const result = res.result;// 存储扫码结果（二维码内容）
           uni.request({
             url: `${BASE_URL}/devices/bind`,
             method: 'POST',
-            data: { code },
-            success: (resp) => {
+            data: { 'uid':'','sn':result },
+            success: (resp) => {			
+			  console.log('扫码成功：', resp);
               if (resp.statusCode === 200) {
                 uni.showToast({
                   title: '添加成功',
@@ -146,21 +151,26 @@ export default {
                 this.fetchDevices();
               } else {
                 uni.showToast({
-                  title: '添加失败',
+                  title: '添加失败:'+(resp.getMsg||'fail'),
                   icon: 'none'
                 });
               }
             },
-            fail: () => {
+            fail: (err) => {
               uni.showToast({
-                title: '网络异常',
+                title: '扫码失败：' + (err.errMsg || '取消扫码'),
                 icon: 'none'
               });
             }
           });
         },
-        fail: () => {
-          // 用户取消或扫码失败不提示
+		// 扫码失败的回调（如用户取消、权限不足）
+        fail: (err) => {
+		  console.error('扫码失败：', err);
+          uni.showToast({
+                title: '扫码失败：' + (err.errMsg || '取消扫码'),
+                icon: 'none'
+              });
         }
       });
     },
