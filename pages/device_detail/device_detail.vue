@@ -1,8 +1,5 @@
 <template>
   <view class="page">
-    <view class="top-actions">
-      <view class="delete-icon" @tap="handleDelete">✕</view>
-    </view>
     <view class="card">
       <view class="row main-info">
         <view class="left">
@@ -224,13 +221,13 @@ export default {
 }
 
 .delete-icon {
-  width: 48rpx;
-  height: 48rpx;
+  width: 40rpx;
+  height: 40rpx;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fca5a5;           /* 浅淡的红色 */
-  font-size: 32rpx;
+  font-size: 24rpx;
   opacity: 0.6;             /* 弱化透明度 */
   cursor: pointer;
   transition: opacity 0.2s ease;
