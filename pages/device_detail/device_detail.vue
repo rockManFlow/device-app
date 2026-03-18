@@ -1,9 +1,7 @@
 <template>
   <view class="page">
     <view class="top-actions">
-      <view class="delete-btn" @tap="handleDelete">
-        删除
-      </view>
+      <view class="delete-icon" @tap="handleDelete">✕</view>
     </view>
     <view class="card">
       <view class="row main-info">
@@ -225,12 +223,21 @@ export default {
   z-index: 20;
 }
 
-.delete-btn {
-  padding: 12rpx 20rpx;
-  border-radius: 999rpx;
-  background-color: #fee2e2;
-  color: #dc2626;
-  font-size: 26rpx;
+.delete-icon {
+  width: 48rpx;
+  height: 48rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fca5a5;           /* 浅淡的红色 */
+  font-size: 32rpx;
+  opacity: 0.6;             /* 弱化透明度 */
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.delete-icon:hover {
+  opacity: 0.8;             /* 悬停时增加透明度 */
 }
 
 .card {
