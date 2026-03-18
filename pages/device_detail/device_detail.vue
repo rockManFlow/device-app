@@ -1,42 +1,52 @@
 <template>
   <view class="page">
-    <view class="card">
-      <view class="row main-info">
-        <view class="left">
-          <view class="name">
-            <text class="name-label">设备名称: </text>
-            <text class="name-value">{{ deviceNameText }}</text>
-          </view>
-        </view>
-        <view class="status-switch" @tap="handleStatusToggleTap">
-          <view class="toggle" :class="statusChecked ? 'toggle-on' : 'toggle-off'">
-            <view class="toggle-knob"></view>
-          </view>
-        </view>
+    <!-- 自定义导航栏（新增左侧回退图标） -->
+    <view class="custom-nav-bar">
+      <!-- 回退图标 -->
+      <view class="back-icon" @tap="handleBack">
+        <text class="back-text">&lt;</text>
       </view>
-
-	  <view class="row">
-        <text class="label">序列号</text>
-        <text class="value">{{ detail.sn || '-' }}</text>
-      </view>
-      <view class="row">
-        <text class="label">设备类型</text>
-        <text class="value">{{ detail.deviceType || '-' }}</text>
-      </view>
-      <view class="row">
-        <text class="label">型号</text>
-        <text class="value">{{ detail.deviceIcon || '-' }}</text>
-      </view>
-      
+      <!-- 页面标题 -->
+      <view class="nav-title">设备详情</view>
+      <!-- 删除图标 -->
+      <view class="delete-icon" @tap="handleDelete">✕</view>
     </view>
 
-    <view class="card">
-      <view class="section-title">
-        设备说明
+    <!-- 原有设备详情内容 -->
+    <view class="content-wrap">
+      <view class="card">
+        <view class="row main-info">
+          <view class="left">
+            <view class="name">
+              <text class="name-label">设备名称: </text>
+              <text class="name-value">{{ deviceNameText }}</text>
+            </view>
+          </view>
+          <view class="status-switch" @tap="handleStatusToggleTap">
+            <view class="toggle" :class="statusChecked ? 'toggle-on' : 'toggle-off'">
+              <view class="toggle-knob"></view>
+            </view>
+          </view>
+        </view>
+
+        <view class="row">
+          <text class="label">序列号</text>
+          <text class="value">{{ detail.sn || '-' }}</text>
+        </view>
+        <view class="row">
+          <text class="label">设备类型</text>
+          <text class="value">{{ detail.deviceType || '-' }}</text>
+        </view>
+        <view class="row">
+          <text class="label">型号</text>
+          <text class="value">{{ detail.deviceIcon || '-' }}</text>
+        </view>
       </view>
-      <text class="desc">
-        {{ detail.description || '暂无设备说明。' }}
-      </text>
+
+      <view class="card">
+        <view class="section-title">设备说明</view>
+        <text class="desc">{{ detail.description || '暂无设备说明。' }}</text>
+      </view>
     </view>
   </view>
 </template>
@@ -57,13 +67,7 @@ export default {
   computed: {
     deviceNameText() {
       const d = this.detail || {};
-      return (
-        d.deviceName ||
-        d.name ||
-        d.device_name ||
-        d.deviceTitle ||
-        '-'
-      );
+      return d.deviceName || d.name || d.device_name || d.deviceTitle || '-';
     }
   },
   onLoad(options) {
@@ -71,42 +75,44 @@ export default {
       this.id = options.id;
       this.fetchDetail();
     } else {
-      uni.showToast({
-        title: '缺少设备ID',
-        icon: 'none'
-      });
+      uni.showToast({ title: '缺少设备ID', icon: 'none' });
     }
   },
   methods: {
+    // 新增：回退到上一页
+    handleBack() {
+      // uni.navigateBack 是uni-app原生返回上一页的API
+      uni.navigateBack({
+        delta: 1, // 返回1级页面（上一页）
+        fail: () => {
+          // 兼容：如果没有上一页，跳转到首页
+          uni.redirectTo({ url: '/pages/index/index' });
+        }
+      });
+    },
+
+    // 获取设备详情（原有逻辑）
     fetchDetail() {
       uni.request({
         url: `${BASE_URL}/device/detail`,
         method: 'POST',
-		header: {
-		          'Content-Type': 'application/json' 
-		          // 可选：如果接口需要token，添加请求头
-		          // 'Authorization': 'Bearer ' + uni.getStorageSync('token')
-		        },
-		data:{sn:this.id,uid:this.uid},
+        header: { 'Content-Type': 'application/json' },
+        data: { sn: this.id, uid: this.uid },
         success: (res) => {
           if (res.statusCode === 200 && res.data.data) {
             this.detail = res.data.data;
-            this.statusChecked = (this.detail.deviceStatus === 'on');
+            this.statusChecked = this.detail.deviceStatus === 'on';
           } else {
-            uni.showToast({
-              title: '详情数据异常',
-              icon: 'none'
-            });
+            uni.showToast({ title: '详情数据异常', icon: 'none' });
           }
         },
         fail: () => {
-          uni.showToast({
-            title: '获取详情失败',
-            icon: 'none'
-          });
+          uni.showToast({ title: '获取详情失败', icon: 'none' });
         }
       });
     },
+
+    // 开关状态切换（原有逻辑）
     handleStatusToggleTap() {
       if (this.updatingStatus) return;
       const nextChecked = !this.statusChecked;
@@ -123,6 +129,8 @@ export default {
         }
       });
     },
+
+    // 更新设备状态（原有逻辑）
     updateDeviceStatus(nextStatus) {
       if (!this.id) return;
       this.updatingStatus = true;
@@ -130,21 +138,12 @@ export default {
       uni.request({
         url: `${BASE_URL}/device/status`,
         method: 'POST',
-        header: {
-          'Content-Type': 'application/json'
-        },
-        data: {
-          sn: this.id,
-          uid: this.uid,
-          deviceStatus: nextStatus
-        },
+        header: { 'Content-Type': 'application/json' },
+        data: { sn: this.id, uid: this.uid, deviceStatus: nextStatus },
         success: (res) => {
           if (res.statusCode === 200) {
-            this.detail = {
-              ...(this.detail || {}),
-              deviceStatus: nextStatus
-            };
-            this.statusChecked = (nextStatus === 'on');
+            this.detail = { ...this.detail, deviceStatus: nextStatus };
+            this.statusChecked = nextStatus === 'on';
             uni.showToast({ title: '操作成功', icon: 'success' });
           } else {
             uni.showToast({ title: '操作失败', icon: 'none' });
@@ -159,6 +158,8 @@ export default {
         }
       });
     },
+
+    // 点击删除图标触发确认弹窗（原有逻辑）
     handleDelete() {
       if (!this.id) return;
       uni.showModal({
@@ -171,14 +172,14 @@ export default {
         }
       });
     },
+
+    // 调用删除接口（原有逻辑）
     deleteDevice() {
       uni.showLoading({ title: '删除中...' });
       uni.request({
         url: `${BASE_URL}/device/delete`,
         method: 'POST',
-        header: {
-          'Content-Type': 'application/json'
-        },
+        header: { 'Content-Type': 'application/json' },
         data: {
           sn: this.id,
           uid: this.uid
@@ -206,37 +207,83 @@ export default {
 </script>
 
 <style scoped>
+/* 页面基础样式 */
 .page {
-  padding: 24rpx;
   background-color: #f5f7fb;
-  min-height: 100%;
+  min-height: 100vh;
   box-sizing: border-box;
 }
 
-.top-actions {
-  position: fixed;
-  top: 18rpx;
-  right: 24rpx;
-  z-index: 20;
-}
-
-.delete-icon {
-  width: 40rpx;
-  height: 40rpx;
+/* 自定义导航栏样式（新增回退图标布局） */
+.custom-nav-bar {
+  height: 44px; /* 适配小程序导航栏高度 */
+  line-height: 44px;
+  padding: 0 24rpx;
+  background-color: #F8F8F8;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fca5a5;           /* 浅淡的红色 */
-  font-size: 24rpx;
-  opacity: 0.6;             /* 弱化透明度 */
+  position: relative;
+  border-bottom: 1px solid #eee;
+}
+
+/* 回退图标样式 */
+.back-icon {
+  position: absolute;
+  left: 24rpx;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48rpx;
+  height: 48rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #000;
+  font-size: 32rpx;
   cursor: pointer;
-  transition: opacity 0.2s ease;
 }
 
-.delete-icon:hover {
-  opacity: 0.8;             /* 悬停时增加透明度 */
+.back-icon:active {
+  opacity: 0.8; /* 点击反馈 */
 }
 
+.back-text {
+  font-weight: 500;
+}
+
+/* 导航标题（居中） */
+.nav-title {
+  font-size: 36rpx;
+  font-weight: 500;
+  color: #000;
+}
+
+/* 删除图标样式（不变） */
+.delete-icon {
+  position: absolute;
+  right: 24rpx;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48rpx;
+  height: 48rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ff4d4f; /* 红色 */
+  font-size: 32rpx;
+  cursor: pointer;
+}
+
+.delete-icon:active {
+  opacity: 0.8;
+}
+
+/* 内容区域（避开导航栏） */
+.content-wrap {
+  padding: 24rpx;
+}
+
+/* 原有样式保留 */
 .card {
   background-color: #ffffff;
   border-radius: 24rpx;
@@ -315,12 +362,6 @@ export default {
   box-shadow: 0 6rpx 14rpx rgba(17, 24, 39, 0.18);
 }
 
-.sub {
-  margin-top: 8rpx;
-  font-size: 26rpx;
-  color: #6b7280;
-}
-
 .label {
   font-size: 26rpx;
   color: #6b7280;
@@ -345,4 +386,3 @@ export default {
   line-height: 1.6;
 }
 </style>
-

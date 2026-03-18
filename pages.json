@@ -10,7 +10,11 @@
 		{
 			"path": "pages/device_detail/device_detail",
 			"style": {
-				"navigationBarTitleText": "设备详情"
+				"navigationBarTitleText": "设备详情",
+				"navigationStyle": "custom", // 开启自定义导航栏
+				"app-plus": {
+					"titleNView": false // 隐藏 App 端原生导航栏
+				}
 			}
 		}
 	],
