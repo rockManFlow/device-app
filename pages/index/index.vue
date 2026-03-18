@@ -54,7 +54,7 @@
       >
         <view
           v-for="item in devices"
-          :key="item.id"
+          :key="item.sn"
           class="device-item"
           @tap="goDetail(item)"
         >
@@ -65,10 +65,10 @@
           />
           <view class="device-main">
             <view class="device-name">
-              {{ item.name }}
+              {{ item.deviceName }}
             </view>
             <view class="device-desc">
-              {{ item.location || '未设置位置' }}
+              {{ item.deviceType || '未设置位置' }}
             </view>
           </view>
           <view
