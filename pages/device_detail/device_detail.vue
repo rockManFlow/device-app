@@ -4,40 +4,30 @@
       <view class="row main-info">
         <view class="left">
           <view class="name">
-            {{ detail.name || '设备名称' }}
-          </view>
-          <view class="sub">
-            {{ detail.location || '未设置位置' }}
+            {{ detail.deviceName || '设备名称' }}
           </view>
         </view>
         <view
           class="status-tag"
-          :class="detail.status === 'on' ? 'on' : 'off'"
+          :class="detail.deviceStatus === 'on' ? 'on' : 'off'"
         >
-          {{ detail.status === 'on' ? '开' : '关' }}
+          {{ detail.deviceStatus === 'on' ? '开' : '关' }}
         </view>
       </view>
 
-      <view class="row">
-        <text class="label">设备类型</text>
-        <text class="value">{{ detail.type || '-' }}</text>
-      </view>
-      <view class="row">
-        <text class="label">型号</text>
-        <text class="value">{{ detail.model || '-' }}</text>
-      </view>
-      <view class="row">
+	  <view class="row">
         <text class="label">序列号</text>
         <text class="value">{{ detail.sn || '-' }}</text>
       </view>
       <view class="row">
-        <text class="label">房间</text>
-        <text class="value">{{ detail.room || '-' }}</text>
+        <text class="label">设备类型</text>
+        <text class="value">{{ detail.deviceType || '-' }}</text>
       </view>
       <view class="row">
-        <text class="label">上次在线时间</text>
-        <text class="value">{{ detail.lastOnline || '-' }}</text>
+        <text class="label">型号</text>
+        <text class="value">{{ detail.deviceIcon || '-' }}</text>
       </view>
+      
     </view>
 
     <view class="card">
@@ -82,7 +72,7 @@ export default {
 		          // 可选：如果接口需要token，添加请求头
 		          // 'Authorization': 'Bearer ' + uni.getStorageSync('token')
 		        },
-		data:{sn:this.id},
+		data:{sn:this.id，uid:'testuid'},
         success: (res) => {
           if (res.statusCode === 200 && res.data.data) {
             this.detail = res.data.data;
