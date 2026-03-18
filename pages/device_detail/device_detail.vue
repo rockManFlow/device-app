@@ -52,7 +52,7 @@
 </template>
 
 <script>
-const BASE_URL = 'https://your-backend-host/api';
+const BASE_URL = 'http://127.0.0.1:8820';
 
 export default {
   data() {
@@ -75,11 +75,17 @@ export default {
   methods: {
     fetchDetail() {
       uni.request({
-        url: `${BASE_URL}/devices/${this.id}`,
-        method: 'GET',
+        url: `${BASE_URL}/device/detail`,
+        method: 'POST',
+		header: {
+		          'Content-Type': 'application/json' 
+		          // 可选：如果接口需要token，添加请求头
+		          // 'Authorization': 'Bearer ' + uni.getStorageSync('token')
+		        },
+		data:{sn:this.id},
         success: (res) => {
-          if (res.statusCode === 200 && res.data) {
-            this.detail = res.data;
+          if (res.statusCode === 200 && res.data.data) {
+            this.detail = res.data.data;
           } else {
             uni.showToast({
               title: '详情数据异常',

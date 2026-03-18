@@ -60,7 +60,7 @@
         >
           <image
             class="device-icon"
-            :src="item.icon || defaultDeviceIcon"
+            :src="item.deviceIcon || defaultDeviceIcon"
             mode="aspectFill"
           />
           <view class="device-main">
@@ -73,9 +73,9 @@
           </view>
           <view
             class="device-status"
-            :class="item.status === 'on' ? 'status-on' : 'status-off'"
+            :class="item.deviceStatus === 'on' ? 'status-on' : 'status-off'"
           >
-            {{ item.status === 'on' ? '开' : '关' }}
+            {{ item.deviceStatus === 'on' ? '开' : '关' }}
           </view>
         </view>
       </scroll-view>
@@ -105,7 +105,7 @@ export default {
     fetchDevices() {
       this.loading = true;
       uni.request({
-        url: `${BASE_URL}/devices`,
+        url: `${BASE_URL}/device/list`,
         method: 'POST',
 		header: {
 		          'Content-Type': 'application/json' 
@@ -115,8 +115,8 @@ export default {
 		data:{uid:'asccde11111'},
         success: (res) => {
 			console.info(res);
-          if (res.statusCode === 200 && Array.isArray(res.data)) {
-            this.devices = res.data;
+          if (res.statusCode === 200 && Array.isArray(res.data.data)) {
+            this.devices = res.data.data;
           } else {
             uni.showToast({
               title: '设备数据异常',
@@ -148,7 +148,7 @@ export default {
           uni.request({
             url: `${BASE_URL}/devices/bind`,
             method: 'POST',
-            data: { uid:'',sn:result },
+            data: { uid:'',sn:result},
             success: (resp) => {			
 			  console.log('扫码成功：', resp);
               if (resp.statusCode === 200) {
@@ -184,7 +184,7 @@ export default {
     },
     goDetail(item) {
       uni.navigateTo({
-        url: `/pages/device_detail/device_detail?id=${item.id}`
+        url: `/pages/device_detail/device_detail?id=${item.sn}`
       });
     }
   }
