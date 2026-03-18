@@ -1,17 +1,22 @@
 <template>
   <view class="page">
+    <view class="top-actions">
+      <view class="delete-btn" @tap="handleDelete">
+        删除
+      </view>
+    </view>
     <view class="card">
       <view class="row main-info">
         <view class="left">
           <view class="name">
-            {{ detail.deviceName || '设备名称' }}
+            <text class="name-label">设备名称: </text>
+            <text class="name-value">{{ deviceNameText }}</text>
           </view>
         </view>
-        <view
-          class="status-tag"
-          :class="detail.deviceStatus === 'on' ? 'on' : 'off'"
-        >
-          {{ detail.deviceStatus === 'on' ? '开' : '关' }}
+        <view class="status-switch" @tap="handleStatusToggleTap">
+          <view class="toggle" :class="statusChecked ? 'toggle-on' : 'toggle-off'">
+            <view class="toggle-knob"></view>
+          </view>
         </view>
       </view>
 
@@ -48,8 +53,23 @@ export default {
   data() {
     return {
       id: null,
-      detail: {}
+      detail: {},
+      statusChecked: false,
+      updatingStatus: false,
+      uid: 'testuid'
     };
+  },
+  computed: {
+    deviceNameText() {
+      const d = this.detail || {};
+      return (
+        d.deviceName ||
+        d.name ||
+        d.device_name ||
+        d.deviceTitle ||
+        '-'
+      );
+    }
   },
   onLoad(options) {
     if (options && options.id) {
@@ -72,10 +92,11 @@ export default {
 		          // 可选：如果接口需要token，添加请求头
 		          // 'Authorization': 'Bearer ' + uni.getStorageSync('token')
 		        },
-		data:{sn:this.id，uid:'testuid'},
+		data:{sn:this.id,uid:this.uid},
         success: (res) => {
           if (res.statusCode === 200 && res.data.data) {
             this.detail = res.data.data;
+            this.statusChecked = (this.detail.deviceStatus === 'on');
           } else {
             uni.showToast({
               title: '详情数据异常',
@@ -90,6 +111,100 @@ export default {
           });
         }
       });
+    },
+    handleStatusToggleTap() {
+      if (this.updatingStatus) return;
+      const nextChecked = !this.statusChecked;
+      const nextStatus = nextChecked ? 'on' : 'off';
+      const actionText = nextChecked ? '开启' : '关闭';
+
+      uni.showModal({
+        title: '确认操作',
+        content: `是否确认${actionText}该设备？`,
+        confirmText: '确定',
+        cancelText: '取消',
+        success: (r) => {
+          if (r.confirm) this.updateDeviceStatus(nextStatus);
+        }
+      });
+    },
+    updateDeviceStatus(nextStatus) {
+      if (!this.id) return;
+      this.updatingStatus = true;
+      uni.showLoading({ title: '处理中...' });
+      uni.request({
+        url: `${BASE_URL}/device/status`,
+        method: 'POST',
+        header: {
+          'Content-Type': 'application/json'
+        },
+        data: {
+          sn: this.id,
+          uid: this.uid,
+          deviceStatus: nextStatus
+        },
+        success: (res) => {
+          if (res.statusCode === 200) {
+            this.detail = {
+              ...(this.detail || {}),
+              deviceStatus: nextStatus
+            };
+            this.statusChecked = (nextStatus === 'on');
+            uni.showToast({ title: '操作成功', icon: 'success' });
+          } else {
+            uni.showToast({ title: '操作失败', icon: 'none' });
+          }
+        },
+        fail: () => {
+          uni.showToast({ title: '操作失败', icon: 'none' });
+        },
+        complete: () => {
+          uni.hideLoading();
+          this.updatingStatus = false;
+        }
+      });
+    },
+    handleDelete() {
+      if (!this.id) return;
+      uni.showModal({
+        title: '删除设备',
+        content: '确认删除该设备吗？删除后不可恢复。',
+        confirmText: '确认',
+        cancelText: '取消',
+        success: (r) => {
+          if (r.confirm) this.deleteDevice();
+        }
+      });
+    },
+    deleteDevice() {
+      uni.showLoading({ title: '删除中...' });
+      uni.request({
+        url: `${BASE_URL}/device/delete`,
+        method: 'POST',
+        header: {
+          'Content-Type': 'application/json'
+        },
+        data: {
+          sn: this.id,
+          uid: this.uid
+        },
+        success: (res) => {
+          if (res.statusCode === 200) {
+            uni.showToast({ title: '删除成功', icon: 'success' });
+            setTimeout(() => {
+              uni.reLaunch({ url: '/pages/index/index' });
+            }, 600);
+          } else {
+            uni.showToast({ title: '删除失败', icon: 'none' });
+          }
+        },
+        fail: () => {
+          uni.showToast({ title: '删除失败', icon: 'none' });
+        },
+        complete: () => {
+          uni.hideLoading();
+        }
+      });
     }
   }
 };
@@ -101,6 +216,21 @@ export default {
   background-color: #f5f7fb;
   min-height: 100%;
   box-sizing: border-box;
+}
+
+.top-actions {
+  position: fixed;
+  top: 18rpx;
+  right: 24rpx;
+  z-index: 20;
+}
+
+.delete-btn {
+  padding: 12rpx 20rpx;
+  border-radius: 999rpx;
+  background-color: #fee2e2;
+  color: #dc2626;
+  font-size: 26rpx;
 }
 
 .card {
@@ -132,25 +262,58 @@ export default {
   color: #111827;
 }
 
+.name-label {
+  color: #6b7280;
+  font-size: 26rpx;
+  font-weight: 500;
+  margin-right: 12rpx;
+}
+
+.name-value {
+  color: #111827;
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.status-switch {
+  margin-left: 16rpx;
+  flex-shrink: 0;
+}
+
+.toggle {
+  width: 96rpx;
+  height: 54rpx;
+  border-radius: 999rpx;
+  padding: 6rpx;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  background-color: #e5e7eb;
+  transition: background-color 0.18s ease;
+}
+
+.toggle-on {
+  background-color: #3b82f6;
+  justify-content: flex-end;
+}
+
+.toggle-off {
+  background-color: #e5e7eb;
+  justify-content: flex-start;
+}
+
+.toggle-knob {
+  width: 42rpx;
+  height: 42rpx;
+  border-radius: 50%;
+  background-color: #ffffff;
+  box-shadow: 0 6rpx 14rpx rgba(17, 24, 39, 0.18);
+}
+
 .sub {
   margin-top: 8rpx;
   font-size: 26rpx;
-  color: #6b7280;
-}
-
-.status-tag {
-  padding: 8rpx 20rpx;
-  border-radius: 999rpx;
-  font-size: 26rpx;
-}
-
-.status-tag.on {
-  background-color: #dcfce7;
-  color: #16a34a;
-}
-
-.status-tag.off {
-  background-color: #e5e7eb;
   color: #6b7280;
 }
 
