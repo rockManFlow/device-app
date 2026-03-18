@@ -136,7 +136,7 @@ export default {
       this.updatingStatus = true;
       uni.showLoading({ title: '处理中...' });
       uni.request({
-        url: `${BASE_URL}/device/status`,
+        url: `${BASE_URL}/device/alter/status`,
         method: 'POST',
         header: { 'Content-Type': 'application/json' },
         data: { sn: this.id, uid: this.uid, deviceStatus: nextStatus },
