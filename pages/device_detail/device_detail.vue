@@ -121,7 +121,7 @@ export default {
 
       uni.showModal({
         title: '确认操作',
-        content: `是否确认${actionText}该设备？`,
+        content: `是否确认【${actionText}】该设备？`,
         confirmText: '确定',
         cancelText: '取消',
         success: (r) => {
@@ -164,7 +164,7 @@ export default {
       if (!this.id) return;
       uni.showModal({
         title: '删除设备',
-        content: '确认删除该设备吗？删除后不可恢复。',
+        content: '确认【删除】该设备吗？',
         confirmText: '确认',
         cancelText: '取消',
         success: (r) => {

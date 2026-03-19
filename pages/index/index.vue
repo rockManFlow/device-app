@@ -95,7 +95,7 @@ export default {
       },
       devices: [],
       loading: false,
-      defaultDeviceIcon: '/static/device-default.png'
+      defaultDeviceIcon: '/static/air-icon.png'
     };
   },
   onShow() {
@@ -232,10 +232,11 @@ export default {
 .add-btn {
   width: 64rpx;
   height: 64rpx;
-  border-radius: 50%;
+  
+  /* 化圆圈border-radius: 50%;
   border-width: 2rpx;
   border-style: solid;
-  border-color: #3b82f6;
+  border-color: #3b82f6; */
   color: #3b82f6;
   display: flex;
   align-items: center;

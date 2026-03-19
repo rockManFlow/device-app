@@ -41,7 +41,11 @@
                 ]
             },
             /* ios打包配置 */
-            "ios" : {},
+            "ios" : {
+                "privacyDescription" : {
+                    "NSCameraUsageDescription" : "<uses-permission android:name=\"android.permission.CAMERA\"/>"
+                }
+            },
             /* SDK配置 */
             "sdkConfigs" : {}
         }
