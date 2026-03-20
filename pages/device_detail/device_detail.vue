@@ -52,7 +52,9 @@
 </template>
 
 <script>
-const BASE_URL = 'http://127.0.0.1:8820';
+// 引入常量文件
+import configs from '@/common/global-config.js'
+const BASE_URL=configs.BASE_URL;
 
 export default {
   data() {
@@ -61,13 +63,13 @@ export default {
       detail: {},
       statusChecked: false,
       updatingStatus: false,
-      uid: 'testuid'
+      uid: configs.USER_INFO.UID
     };
   },
   computed: {
     deviceNameText() {
       const d = this.detail || {};
-      return d.deviceName || d.name || d.device_name || d.deviceTitle || '-';
+      return d.deviceName || '-';
     }
   },
   onLoad(options) {

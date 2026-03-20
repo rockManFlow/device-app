@@ -84,7 +84,9 @@
 </template>
 
 <script>
-const BASE_URL = 'http://127.0.0.1:8820';
+// 引入常量文件
+import configs from '@/common/global-config.js'
+const BASE_URL=configs.BASE_URL;
 
 export default {
   data() {
@@ -112,7 +114,7 @@ export default {
 		          // 可选：如果接口需要token，添加请求头
 		          // 'Authorization': 'Bearer ' + uni.getStorageSync('token')
 		        },
-		data:{uid:'asccde11111'},
+		data:{uid:configs.USER_INFO.UID},
         success: (res) => {
 			console.info(res);
           if (res.statusCode === 200 && Array.isArray(res.data.data)) {
@@ -148,7 +150,7 @@ export default {
           uni.request({
             url: `${BASE_URL}/devices/bind`,
             method: 'POST',
-            data: { uid:'',sn:result},
+            data: { uid:configs.USER_INFO.UID,sn:result},
             success: (resp) => {			
 			  console.log('扫码成功：', resp);
               if (resp.statusCode === 200) {
