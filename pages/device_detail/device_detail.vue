@@ -124,23 +124,26 @@ export default {
     runtimeKind() {
       const d = this.detail || {}
       const t = String(d.deviceType || '')
-      if (d.deviceType=='temperature') return 'temperature'
-      if (d.deviceType=='LIGHT') return 'light'
+      if (d.deviceType==='temperature') return 'temperature'
+      if (d.deviceType==='LIGHT') return 'light'
       return null
     },
     showRuntimeChart() {
       return !!this.runtimeKind
     },
+	//返回Y坐标信息
     runtimeYAxisLabel() {
       if (this.runtimeKind === 'temperature') return '温度 (℃)'
       if (this.runtimeKind === 'light') return '开关 (0关 / 1开)'
       return ''
     },
+	//是否有数据方法
     hasRuntimePoints() {
       const s = this.runtimeChartData.series && this.runtimeChartData.series[0]
       return s && Array.isArray(s.data) && s.data.length > 0
     },
     chartOpts() {
+		//滚动展示标识
       const scroll = (this.runtimeChartData.categories && this.runtimeChartData.categories.length > 8)
       const light = this.runtimeKind === 'light'
       const xAxis = {
@@ -185,14 +188,16 @@ export default {
   methods: {
     // 新增：回退到上一页
     handleBack() {
+		//直接跳转到首页
+		uni.redirectTo({ url: '/pages/index/index' });
       // uni.navigateBack 是uni-app原生返回上一页的API
-      uni.navigateBack({
-        delta: 1, // 返回1级页面（上一页）
-        fail: () => {
-          // 兼容：如果没有上一页，跳转到首页
-          uni.redirectTo({ url: '/pages/index/index' });
-        }
-      });
+      // uni.navigateBack({
+      //   delta: 1, // 返回1级页面（上一页）
+      //   fail: () => {
+      //     // 兼容：如果没有上一页，跳转到首页
+      //     uni.redirectTo({ url: '/pages/index/index' });
+      //   }
+      // });
     },
 
     // 获取设备详情（原有逻辑）
@@ -224,41 +229,51 @@ export default {
     },
 
     setRangeDays(days) {
-      if (this.rangeDays === days || this.runtimeLoading) return;
+      if (this.rangeDays === days || this.runtimeLoading) 
+		return;
       this.rangeDays = days;
-      if (this.runtimeKind && this.id) this.fetchRuntimeSeries();
+      if (this.runtimeKind && this.id) 
+		this.fetchRuntimeSeries();
     },
 
     /** 将接口返回解析为 { ts, value }[]，ts 统一为毫秒时间戳 */
     normalizeSeriesPayload(raw) {
       let list = [];
-      if (Array.isArray(raw)) list = raw;
+      if (Array.isArray(raw)) 
+		list = raw;
+	  else
+		return [];
       const out = [];
       for (let i = 0; i < list.length; i++) {
         const p = list[i];
         let ts = p.ts;
         let val = p.value;
-        out.push({ ts, value: val });
+		//{ ts: ts, value: val }，属于标准的 JavaScript 普通对象
+        out.push({ ts, value: val });//数组添加数据
       }
       out.sort((a, b) => a.ts - b.ts);
       return out;
     },
 
+	//格式化时间格式
     formatTick(ts, days) {
       const d = new Date(ts);
-      const h = String(d.getHours()).padStart(2, '0');
+      const h = String(d.getHours()).padStart(2, '0');//padStart确保小时字符串的长度至少为 2 位，不足的话在开头补 0
       const m = String(d.getMinutes()).padStart(2, '0');
+	  const s = String(d.getSeconds()).padStart(2, '0');
       const mo = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
-      if (days <= 1) return `${h}:${m}`;
+      if (days <= 1) return `${h}:${m}:${s}`;
       return `${mo}-${day} ${h}:${m}`;
     },
 
+	//处理响应数据设置给图标参数
     buildRuntimeChart(points) {
       const cats = points.map((p) => this.formatTick(p.ts, this.rangeDays));
       const seriesName =
         this.runtimeKind === 'temperature' ? '温度' : '开关';
       this.runtimeChartData = {
+		  //横坐标时间格式
         categories: cats,
         series: [{ name: seriesName, data: points.map((p) => p.value) }]
       };
@@ -267,7 +282,7 @@ export default {
 	//从后端接口获取图表数据
     fetchRuntimeSeries() {
       if (!this.id || !this.runtimeKind) return;
-      const metric = this.runtimeKind === 'temperature' ? 'temperature' : 'switch';
+      // const metric = this.runtimeKind === 'temperature' ? 'temperature' : 'switch';
       this.runtimeLoading = true;
       this.runtimeError = '';
       uni.request({
@@ -277,8 +292,7 @@ export default {
         data: {
           sn: this.id,
           uid: this.uid,
-          days: this.rangeDays,
-          metric
+          days: this.rangeDays
         },
         success: (res) => {
           if (res.statusCode !== 200) {
