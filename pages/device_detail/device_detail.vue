@@ -47,6 +47,41 @@
         <view class="section-title">设备说明</view>
         <text class="desc">{{ detail.description || '暂无设备说明。' }}</text>
       </view>
+
+      <!-- 设备运行图：温度 / 灯类设备展示折线图，右侧 1 天 / 7 天 -->
+      <view v-if="showRuntimeChart" class="card chart-card">
+        <view class="chart-header">
+          <view class="section-title chart-title">设备运行图</view>
+          <view class="range-tabs">
+            <view
+              class="range-tab"
+              :class="{ active: rangeDays === 1 }"
+              @tap="setRangeDays(1)"
+            >
+              1天
+            </view>
+            <view
+              class="range-tab"
+              :class="{ active: rangeDays === 7 }"
+              @tap="setRangeDays(7)"
+            >
+              7天
+            </view>
+          </view>
+        </view>
+        <view class="chart-y-label">{{ runtimeYAxisLabel }}</view>
+        <view v-if="runtimeLoading" class="chart-hint">加载中...</view>
+        <view v-else-if="runtimeError" class="chart-hint err">{{ runtimeError }}</view>
+        <view v-else-if="!hasRuntimePoints" class="chart-hint">暂无运行数据</view>
+        <view v-else class="chart-box">
+          <qiun-data-charts
+            type="line"
+            :opts="chartOpts"
+            :chartData="runtimeChartData"
+            canvasId="deviceRuntimeChart"
+          />
+        </view>
+      </view>
     </view>
   </view>
 </template>
@@ -54,22 +89,89 @@
 <script>
 // 引入常量文件
 import configs from '@/common/global-config.js'
-const BASE_URL=configs.BASE_URL;
+import qiunDataCharts from '@qiun/uni-ucharts'
+
+const BASE_URL = configs.BASE_URL
+/** 与后端约定：POST，body: { sn, uid, days: 1|7, metric: 'temperature'|'switch' }，返回见 fetchRuntimeSeries 内解析 */
+const RUNTIME_SERIES_PATH = '/device/runtime/series'
 
 export default {
+  components: {
+    qiunDataCharts
+  },
   data() {
     return {
       id: null,
       detail: {},
       statusChecked: false,
       updatingStatus: false,
-      uid: configs.USER_INFO.UID
+      uid: configs.USER_INFO.UID,
+      rangeDays: 1,
+      runtimeLoading: false,
+      runtimeError: '',
+      runtimeChartData: {
+        categories: [],
+        series: []
+      }
     };
   },
   computed: {
     deviceNameText() {
       const d = this.detail || {};
       return d.deviceName || '-';
+    },
+    /** 温度 / 灯 类型才展示运行图（按 deviceType 文案匹配，可按后端约定调整） */
+    runtimeKind() {
+      const d = this.detail || {}
+      const t = String(d.deviceType || '')
+      if (/温度|温湿度|temp|thermometer|℃/i.test(t)) return 'temperature'
+      if (/灯|照明|light|lamp/i.test(t)) return 'light'
+      return null
+    },
+    showRuntimeChart() {
+      return !!this.runtimeKind
+    },
+    runtimeYAxisLabel() {
+      if (this.runtimeKind === 'temperature') return '温度 (℃)'
+      if (this.runtimeKind === 'light') return '开关 (0关 / 1开)'
+      return ''
+    },
+    hasRuntimePoints() {
+      const s = this.runtimeChartData.series && this.runtimeChartData.series[0]
+      return s && Array.isArray(s.data) && s.data.length > 0
+    },
+    chartOpts() {
+      const scroll = (this.runtimeChartData.categories && this.runtimeChartData.categories.length > 8)
+      const light = this.runtimeKind === 'light'
+      const xAxis = {
+        disableGrid: true,
+        fontColor: '#9ca3af',
+        rotateLabel: scroll
+      }
+      if (scroll) {
+        xAxis.scrollShow = true
+        xAxis.itemCount = 6
+      }
+      return {
+        color: ['#3b82f6'],
+        padding: [12, 12, 0, 8],
+        enableScroll: scroll,
+        legend: { show: false },
+        xAxis,
+        yAxis: {
+          gridType: 'dash',
+          dashLength: 2,
+          data: light
+            ? [{ min: 0, max: 1, splitNumber: 1 }]
+            : [{}]
+        },
+        extra: {
+          line: {
+            type: 'straight',
+            width: 2
+          }
+        }
+      }
     }
   },
   onLoad(options) {
@@ -104,12 +206,111 @@ export default {
           if (res.statusCode === 200 && res.data.data) {
             this.detail = res.data.data;
             this.statusChecked = this.detail.deviceStatus === 'on';
+            if (this.runtimeKind) {
+              this.runtimeLoading = true;
+              this.runtimeError = '';
+            }
+            this.$nextTick(() => {
+              if (this.runtimeKind) this.fetchRuntimeSeries();
+            });
           } else {
             uni.showToast({ title: '详情数据异常', icon: 'none' });
           }
         },
         fail: () => {
           uni.showToast({ title: '获取详情失败', icon: 'none' });
+        }
+      });
+    },
+
+    setRangeDays(days) {
+      if (this.rangeDays === days || this.runtimeLoading) return;
+      this.rangeDays = days;
+      if (this.runtimeKind && this.id) this.fetchRuntimeSeries();
+    },
+
+    /** 将接口返回解析为 { ts, value }[]，ts 统一为毫秒时间戳 */
+    normalizeSeriesPayload(raw) {
+      let list = [];
+      if (Array.isArray(raw)) list = raw;
+      else if (raw && Array.isArray(raw.data)) list = raw.data;
+      else if (raw && Array.isArray(raw.list)) list = raw.list;
+      else if (raw && Array.isArray(raw.records)) list = raw.records;
+      else if (raw && Array.isArray(raw.points)) list = raw.points;
+      const out = [];
+      for (let i = 0; i < list.length; i++) {
+        const p = list[i];
+        if (!p || typeof p !== 'object') continue;
+        let ts = p.ts ?? p.timestamp ?? p.time ?? p.t ?? p.createTime;
+        if (typeof ts === 'string' && /^\d+$/.test(ts)) ts = Number(ts);
+        if (typeof ts !== 'number' || Number.isNaN(ts)) continue;
+        if (ts < 1e12) ts = ts * 1000;
+        let val = p.value ?? p.temperature ?? p.switchValue ?? p.status ?? p.on;
+        if (val === 'on' || val === true || val === 1 || val === '1') val = 1;
+        else if (val === 'off' || val === false || val === 0 || val === '0') val = 0;
+        else val = Number(val);
+        if (Number.isNaN(val)) continue;
+        out.push({ ts, value: val });
+      }
+      out.sort((a, b) => a.ts - b.ts);
+      return out;
+    },
+
+    formatTick(ts, days) {
+      const d = new Date(ts);
+      const h = String(d.getHours()).padStart(2, '0');
+      const m = String(d.getMinutes()).padStart(2, '0');
+      const mo = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      if (days <= 1) return `${h}:${m}`;
+      return `${mo}-${day} ${h}:${m}`;
+    },
+
+    buildRuntimeChart(points) {
+      const cats = points.map((p) => this.formatTick(p.ts, this.rangeDays));
+      const seriesName =
+        this.runtimeKind === 'temperature' ? '温度' : '开关';
+      this.runtimeChartData = {
+        categories: cats,
+        series: [{ name: seriesName, data: points.map((p) => p.value) }]
+      };
+    },
+
+    fetchRuntimeSeries() {
+      if (!this.id || !this.runtimeKind) return;
+      const metric = this.runtimeKind === 'temperature' ? 'temperature' : 'switch';
+      this.runtimeLoading = true;
+      this.runtimeError = '';
+      uni.request({
+        url: `${BASE_URL}${RUNTIME_SERIES_PATH}`,
+        method: 'POST',
+        header: { 'Content-Type': 'application/json' },
+        data: {
+          sn: this.id,
+          uid: this.uid,
+          days: this.rangeDays,
+          metric
+        },
+        success: (res) => {
+          if (res.statusCode !== 200) {
+            this.runtimeError = '加载运行数据失败';
+            this.runtimeChartData = { categories: [], series: [] };
+            return;
+          }
+          const payload = res.data && (res.data.data !== undefined ? res.data.data : res.data);
+          const points = this.normalizeSeriesPayload(payload);
+          if (!points.length) {
+            this.runtimeChartData = { categories: [], series: [] };
+            return;
+          }
+          this.buildRuntimeChart(points);
+        },
+        fail: () => {
+          this.runtimeError = '网络异常，无法加载运行图';
+          this.runtimeChartData = { categories: [], series: [] };
+        },
+        complete: () => {
+          this.runtimeLoading = false;
         }
       });
     },
@@ -386,5 +587,67 @@ export default {
   font-size: 26rpx;
   color: #4b5563;
   line-height: 1.6;
+}
+
+.chart-card {
+  padding-top: 20rpx;
+}
+
+.chart-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8rpx;
+}
+
+.chart-title {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.range-tabs {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  border-radius: 12rpx;
+  background: #f3f4f6;
+  padding: 4rpx;
+}
+
+.range-tab {
+  padding: 10rpx 28rpx;
+  font-size: 24rpx;
+  color: #6b7280;
+  border-radius: 10rpx;
+}
+
+.range-tab.active {
+  background: #ffffff;
+  color: #3b82f6;
+  font-weight: 500;
+  box-shadow: 0 2rpx 8rpx rgba(59, 130, 246, 0.15);
+}
+
+.chart-y-label {
+  font-size: 22rpx;
+  color: #9ca3af;
+  margin-bottom: 12rpx;
+}
+
+.chart-hint {
+  font-size: 26rpx;
+  color: #9ca3af;
+  text-align: center;
+  padding: 48rpx 0;
+}
+
+.chart-hint.err {
+  color: #ef4444;
+}
+
+.chart-box {
+  width: 100%;
+  height: 420rpx;
 }
 </style>
