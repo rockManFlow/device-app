@@ -124,8 +124,8 @@ export default {
     runtimeKind() {
       const d = this.detail || {}
       const t = String(d.deviceType || '')
-      if (/温度|温湿度|temp|thermometer|℃/i.test(t)) return 'temperature'
-      if (/灯|照明|light|lamp/i.test(t)) return 'light'
+      if (d.deviceType=='temperature') return 'temperature'
+      if (d.deviceType=='LIGHT') return 'light'
       return null
     },
     showRuntimeChart() {
@@ -233,23 +233,11 @@ export default {
     normalizeSeriesPayload(raw) {
       let list = [];
       if (Array.isArray(raw)) list = raw;
-      else if (raw && Array.isArray(raw.data)) list = raw.data;
-      else if (raw && Array.isArray(raw.list)) list = raw.list;
-      else if (raw && Array.isArray(raw.records)) list = raw.records;
-      else if (raw && Array.isArray(raw.points)) list = raw.points;
       const out = [];
       for (let i = 0; i < list.length; i++) {
         const p = list[i];
-        if (!p || typeof p !== 'object') continue;
-        let ts = p.ts ?? p.timestamp ?? p.time ?? p.t ?? p.createTime;
-        if (typeof ts === 'string' && /^\d+$/.test(ts)) ts = Number(ts);
-        if (typeof ts !== 'number' || Number.isNaN(ts)) continue;
-        if (ts < 1e12) ts = ts * 1000;
-        let val = p.value ?? p.temperature ?? p.switchValue ?? p.status ?? p.on;
-        if (val === 'on' || val === true || val === 1 || val === '1') val = 1;
-        else if (val === 'off' || val === false || val === 0 || val === '0') val = 0;
-        else val = Number(val);
-        if (Number.isNaN(val)) continue;
+        let ts = p.ts;
+        let val = p.value;
         out.push({ ts, value: val });
       }
       out.sort((a, b) => a.ts - b.ts);
@@ -276,6 +264,7 @@ export default {
       };
     },
 
+	//从后端接口获取图表数据
     fetchRuntimeSeries() {
       if (!this.id || !this.runtimeKind) return;
       const metric = this.runtimeKind === 'temperature' ? 'temperature' : 'switch';
