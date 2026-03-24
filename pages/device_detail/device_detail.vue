@@ -81,6 +81,45 @@
             canvasId="deviceRuntimeChart"
           />
         </view>
+
+        <!-- 灯类设备：开关状态占比扇形图（与上方 1 天 / 7 天 Tab 一致） -->
+        <view
+          v-if="runtimeKind === 'light' && !runtimeLoading && !runtimeError && hasRuntimePoints"
+          class="light-pie-section"
+        >
+          <view class="light-pie-title">开关状态占比</view>
+          <text class="light-pie-range-hint">{{ lightPieRangeHint }}</text>
+          <view v-if="hasLightPieData" class="light-pie-body">
+            <view class="light-pie-chart-box">
+              <qiun-data-charts
+                type="pie"
+                :opts="lightPieOpts"
+                :chartData="lightPieChartData"
+                canvasId="deviceLightPieChart"
+              />
+            </view>
+            <view class="light-pie-stats">
+              <view class="light-pie-stat light-pie-stat-on">
+                <view class="light-pie-stat-dot" />
+                <view class="light-pie-stat-text">
+                  <text class="light-pie-stat-name">开启</text>
+                  <text class="light-pie-stat-pct">{{ lightSwitchStats.onPctText }}</text>
+                  <text class="light-pie-stat-tip">上报为「开」的数据点占比</text>
+                </view>
+              </view>
+              <view class="light-pie-stat light-pie-stat-off">
+                <view class="light-pie-stat-dot" />
+                <view class="light-pie-stat-text">
+                  <text class="light-pie-stat-name">关闭</text>
+                  <text class="light-pie-stat-pct">{{ lightSwitchStats.offPctText }}</text>
+                  <text class="light-pie-stat-tip">上报为「关」的数据点占比</text>
+                </view>
+              </view>
+            </view>
+          </view>
+          <view v-else class="chart-hint light-pie-empty">暂无有效开关采样数据</view>
+          <text v-if="hasLightPieData" class="light-pie-footnote">说明：占比为有效采样点统计，与实际上电时长可能略有差异。</text>
+        </view>
       </view>
     </view>
   </view>
@@ -112,7 +151,9 @@ export default {
       runtimeChartData: {
         categories: [],
         series: []
-      }
+      },
+      /** 原始运行序列，用于灯类开关占比扇形图 */
+      runtimeRawPoints: []
     };
   },
   computed: {
@@ -175,6 +216,56 @@ export default {
           }
         }
       }
+    },
+    lightPieRangeHint() {
+      return this.rangeDays <= 1 ? '统计范围：近 1 天（与上方 Tab 一致）' : '统计范围：近 7 天（与上方 Tab 一致）'
+    },
+    lightSwitchStats() {
+      return this.computeLightSwitchStats(this.runtimeRawPoints)
+    },
+    hasLightPieData() {
+      return this.lightSwitchStats.total > 0
+    },
+    lightPieChartData() {
+      const s = this.lightSwitchStats
+      if (!s.total) {
+        return { series: [{ data: [] }] }
+      }
+      const data = []
+      if (s.onCount > 0) {
+        data.push({
+          name: '开启',
+          value: s.onCount,
+          labelText: `开启 ${s.onPctText}`
+        })
+      }
+      if (s.offCount > 0) {
+        data.push({
+          name: '关闭',
+          value: s.offCount,
+          labelText: `关闭 ${s.offPctText}`
+        })
+      }
+      return { series: [{ data }] }
+    },
+    lightPieOpts() {
+      return {
+        color: ['#3b82f6', '#9ca3af'],
+        padding: [8, 8, 8, 8],
+        dataLabel: true,
+        legend: { show: false },
+        extra: {
+          pie: {
+            activeOpacity: 0.85,
+            activeRadius: 8,
+            offsetAngle: 0,
+            labelWidth: 12,
+            border: true,
+            borderWidth: 2,
+            borderColor: '#FFFFFF'
+          }
+        }
+      }
     }
   },
   onLoad(options) {
@@ -186,6 +277,45 @@ export default {
     }
   },
   methods: {
+    /** 将单点 value 解析为开 true / 关 false / 无法识别 null（与折线图 0/1 约定一致） */
+    normalizeSwitchState(val) {
+      if (val === true || val === 1) return true
+      if (val === false || val === 0) return false
+      if (val == null || val === '') return null
+      if (typeof val === 'number') {
+        if (val > 0.5) return true
+        if (val <= 0.5) return false
+      }
+      const s = String(val).toLowerCase().trim()
+      if (s === 'on' || s === '1' || s === 'true' || s === '开') return true
+      if (s === 'off' || s === '0' || s === 'false' || s === '关') return false
+      return null
+    },
+    computeLightSwitchStats(points) {
+      let onCount = 0
+      let offCount = 0
+      if (!Array.isArray(points)) {
+        return { onCount: 0, offCount: 0, total: 0, onPctText: '0%', offPctText: '0%' }
+      }
+      for (let i = 0; i < points.length; i++) {
+        const st = this.normalizeSwitchState(points[i].value)
+        if (st === true) onCount++
+        else if (st === false) offCount++
+      }
+      const total = onCount + offCount
+      const fmt = (n, d) => {
+        if (!d) return '0%'
+        const p = Math.round((n / d) * 1000) / 10
+        return `${p.toFixed(1)}%`
+      }
+      return {
+        onCount,
+        offCount,
+        total,
+        onPctText: fmt(onCount, total),
+        offPctText: fmt(offCount, total)
+      }
+    },
     // 新增：回退到上一页
     handleBack() {
 		//直接跳转到首页
@@ -211,6 +341,9 @@ export default {
           if (res.statusCode === 200 && res.data.data) {
             this.detail = res.data.data;
             this.statusChecked = this.detail.deviceStatus === 'on';
+            if (!this.runtimeKind) {
+              this.runtimeRawPoints = [];
+            }
             if (this.runtimeKind) {
               this.runtimeLoading = true;
               this.runtimeError = '';
@@ -285,6 +418,7 @@ export default {
       // const metric = this.runtimeKind === 'temperature' ? 'temperature' : 'switch';
       this.runtimeLoading = true;
       this.runtimeError = '';
+      this.runtimeRawPoints = [];
       uni.request({
         url: `${BASE_URL}${RUNTIME_SERIES_PATH}`,
         method: 'POST',
@@ -298,19 +432,23 @@ export default {
           if (res.statusCode !== 200) {
             this.runtimeError = '加载运行数据失败';
             this.runtimeChartData = { categories: [], series: [] };
+            this.runtimeRawPoints = [];
             return;
           }
           const payload = res.data && (res.data.data !== undefined ? res.data.data : res.data);
           const points = this.normalizeSeriesPayload(payload);
           if (!points.length) {
             this.runtimeChartData = { categories: [], series: [] };
+            this.runtimeRawPoints = [];
             return;
           }
+          this.runtimeRawPoints = points;
           this.buildRuntimeChart(points);
         },
         fail: () => {
           this.runtimeError = '网络异常，无法加载运行图';
           this.runtimeChartData = { categories: [], series: [] };
+          this.runtimeRawPoints = [];
         },
         complete: () => {
           this.runtimeLoading = false;
@@ -652,5 +790,110 @@ export default {
 .chart-box {
   width: 100%;
   height: 420rpx;
+}
+
+.light-pie-section {
+  margin-top: 28rpx;
+  padding-top: 24rpx;
+  border-top: 1px solid #f3f4f6;
+}
+
+.light-pie-title {
+  font-size: 28rpx;
+  font-weight: 500;
+  color: #111827;
+  margin-bottom: 8rpx;
+}
+
+.light-pie-range-hint {
+  display: block;
+  font-size: 22rpx;
+  color: #9ca3af;
+  margin-bottom: 20rpx;
+  line-height: 1.5;
+}
+
+.light-pie-body {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+
+.light-pie-chart-box {
+  width: 320rpx;
+  height: 320rpx;
+  flex-shrink: 0;
+}
+
+.light-pie-stats {
+  flex: 1;
+  min-width: 240rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.light-pie-stat {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+.light-pie-stat-dot {
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
+  margin-top: 10rpx;
+  margin-right: 16rpx;
+  flex-shrink: 0;
+}
+
+.light-pie-stat-on .light-pie-stat-dot {
+  background-color: #3b82f6;
+}
+
+.light-pie-stat-off .light-pie-stat-dot {
+  background-color: #9ca3af;
+}
+
+.light-pie-stat-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.light-pie-stat-name {
+  font-size: 28rpx;
+  font-weight: 500;
+  color: #111827;
+  margin-bottom: 6rpx;
+}
+
+.light-pie-stat-pct {
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 8rpx;
+}
+
+.light-pie-stat-tip {
+  font-size: 22rpx;
+  color: #6b7280;
+  line-height: 1.45;
+}
+
+.light-pie-footnote {
+  display: block;
+  margin-top: 20rpx;
+  font-size: 22rpx;
+  color: #9ca3af;
+  line-height: 1.5;
+}
+
+.light-pie-empty {
+  padding: 32rpx 0 8rpx;
 }
 </style>
