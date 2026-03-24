@@ -1,7 +1,10 @@
 <template>
   <view class="page">
-    <!-- 自定义导航栏（新增左侧回退图标） -->
-    <view class="custom-nav-bar">
+    <!-- 自定义导航栏：顶部留出状态栏安全区 -->
+    <view
+      class="custom-nav-bar"
+      :style="{ paddingTop: statusBarHeight + 'px' }"
+    >
       <!-- 回退图标 -->
       <view class="back-icon" @tap="handleBack">
         <text class="back-text">&lt;</text>
@@ -12,8 +15,10 @@
       <view class="delete-icon" @tap="handleDelete">✕</view>
     </view>
 
-    <!-- 原有设备详情内容 -->
-    <view class="content-wrap">
+    <view v-if="detailLoading" class="page-loading">
+      <text class="page-loading-text">加载中...</text>
+    </view>
+    <view v-else class="content-wrap">
       <view class="card">
         <view class="row main-info">
           <view class="left">
@@ -29,6 +34,12 @@
           </view>
         </view>
 
+        <view class="row">
+          <text class="label">当前状态</text>
+          <text class="value status-text" :class="statusChecked ? 'status-text-on' : 'status-text-off'">
+            {{ statusChecked ? '开启' : '关闭' }}
+          </text>
+        </view>
         <view class="row">
           <text class="label">序列号</text>
           <text class="value">{{ detail.sn || '-' }}</text>
@@ -55,14 +66,14 @@
           <view class="range-tabs">
             <view
               class="range-tab"
-              :class="{ active: rangeDays === 1 }"
+              :class="{ active: rangeDays === 1, disabled: runtimeLoading }"
               @tap="setRangeDays(1)"
             >
               1天
             </view>
             <view
               class="range-tab"
-              :class="{ active: rangeDays === 7 }"
+              :class="{ active: rangeDays === 7, disabled: runtimeLoading }"
               @tap="setRangeDays(7)"
             >
               7天
@@ -79,6 +90,8 @@
             :opts="chartOpts"
             :chartData="runtimeChartData"
             canvasId="deviceRuntimeChart"
+            :ontouch="runtimeChartScrollEnabled"
+            :disable-scroll="runtimeChartScrollEnabled"
           />
         </view>
 
@@ -96,6 +109,9 @@
                 :opts="lightPieOpts"
                 :chartData="lightPieChartData"
                 canvasId="deviceLightPieChart"
+                tooltip-format="lightPieTip"
+                :tooltip-show="true"
+                :ontouch="true"
               />
             </view>
             <view class="light-pie-stats">
@@ -142,6 +158,8 @@ export default {
     return {
       id: null,
       detail: {},
+      detailLoading: false,
+      statusBarHeight: 0,
       statusChecked: false,
       updatingStatus: false,
       uid: configs.USER_INFO.UID,
@@ -161,12 +179,12 @@ export default {
       const d = this.detail || {};
       return d.deviceName || '-';
     },
-    /** 温度 / 灯 类型才展示运行图（按 deviceType 文案匹配，可按后端约定调整） */
+    /** 温度 / 灯 类型才展示运行图（兼容大小写） */
     runtimeKind() {
       const d = this.detail || {}
-      const t = String(d.deviceType || '')
-      if (d.deviceType==='temperature') return 'temperature'
-      if (d.deviceType==='LIGHT') return 'light'
+      const t = String(d.deviceType || '').toLowerCase()
+      if (t === 'temperature') return 'temperature'
+      if (t === 'light') return 'light'
       return null
     },
     showRuntimeChart() {
@@ -183,9 +201,14 @@ export default {
       const s = this.runtimeChartData.series && this.runtimeChartData.series[0]
       return s && Array.isArray(s.data) && s.data.length > 0
     },
+    /** 数据点多于 8 个时开启横向滚动；需配合 qiun 的 ontouch，否则小程序端无法滑动 */
+    runtimeChartScrollEnabled() {
+      const c = this.runtimeChartData.categories
+      return !!(c && c.length > 8)
+    },
     chartOpts() {
 		//滚动展示标识
-      const scroll = (this.runtimeChartData.categories && this.runtimeChartData.categories.length > 8)
+      const scroll = this.runtimeChartScrollEnabled
       const light = this.runtimeKind === 'light'
       const xAxis = {
         disableGrid: true,
@@ -236,14 +259,14 @@ export default {
         data.push({
           name: '开启',
           value: s.onCount,
-          labelText: `开启 ${s.onPctText}`
+          tooltipText: `开启：占比 ${s.onPctText}（${s.onCount} 个上报点）`
         })
       }
       if (s.offCount > 0) {
         data.push({
           name: '关闭',
           value: s.offCount,
-          labelText: `关闭 ${s.offPctText}`
+          tooltipText: `关闭：占比 ${s.offPctText}（${s.offCount} 个上报点）`
         })
       }
       return { series: [{ data }] }
@@ -251,24 +274,42 @@ export default {
     lightPieOpts() {
       return {
         color: ['#3b82f6', '#9ca3af'],
-        padding: [8, 8, 8, 8],
-        dataLabel: true,
+        fontSize: 12,
+        padding: [10, 10, 10, 10],
+        dataLabel: false,
         legend: { show: false },
         extra: {
           pie: {
-            activeOpacity: 0.85,
-            activeRadius: 8,
+            activeOpacity: 0.88,
+            activeRadius: 12,
             offsetAngle: 0,
-            labelWidth: 12,
             border: true,
             borderWidth: 2,
             borderColor: '#FFFFFF'
+          },
+          tooltip: {
+            showBox: true,
+            showArrow: true,
+            bgColor: '#111827',
+            bgOpacity: 0.92,
+            fontColor: '#FFFFFF',
+            fontSize: 13,
+            lineHeight: 22,
+            legendShow: false,
+            legendShape: 'circle',
+            boxPadding: 4
           }
         }
       }
     }
   },
   onLoad(options) {
+    try {
+      const sys = uni.getSystemInfoSync()
+      this.statusBarHeight = (sys && sys.statusBarHeight) ? sys.statusBarHeight : 0
+    } catch (e) {
+      this.statusBarHeight = 0
+    }
     if (options && options.id) {
       this.id = options.id;
       this.fetchDetail();
@@ -316,22 +357,18 @@ export default {
         offPctText: fmt(offCount, total)
       }
     },
-    // 新增：回退到上一页
     handleBack() {
-		//直接跳转到首页
-		uni.redirectTo({ url: '/pages/index/index' });
-      // uni.navigateBack 是uni-app原生返回上一页的API
+		uni.redirectTo({ url: '/pages/index/index' })
       // uni.navigateBack({
-      //   delta: 1, // 返回1级页面（上一页）
+      //   delta: 1,
       //   fail: () => {
-      //     // 兼容：如果没有上一页，跳转到首页
-      //     uni.redirectTo({ url: '/pages/index/index' });
+      //     uni.redirectTo({ url: '/pages/index/index' })
       //   }
-      // });
+      // })
     },
 
-    // 获取设备详情（原有逻辑）
     fetchDetail() {
+      this.detailLoading = true
       uni.request({
         url: `${BASE_URL}/device/detail`,
         method: 'POST',
@@ -357,6 +394,9 @@ export default {
         },
         fail: () => {
           uni.showToast({ title: '获取详情失败', icon: 'none' });
+        },
+        complete: () => {
+          this.detailLoading = false
         }
       });
     },
@@ -369,46 +409,55 @@ export default {
 		this.fetchRuntimeSeries();
     },
 
-    /** 将接口返回解析为 { ts, value }[]，ts 统一为毫秒时间戳 */
+    /** 将接口返回解析为 { ts, value }[]，ts 统一为毫秒时间戳（兼容秒级时间戳） */
     normalizeSeriesPayload(raw) {
       let list = [];
-      if (Array.isArray(raw)) 
-		list = raw;
-	  else
-		return [];
+      if (Array.isArray(raw))
+        list = raw;
+      else
+        return [];
       const out = [];
       for (let i = 0; i < list.length; i++) {
         const p = list[i];
         let ts = p.ts;
-        let val = p.value;
-		//{ ts: ts, value: val }，属于标准的 JavaScript 普通对象
-        out.push({ ts, value: val });//数组添加数据
+        const n = Number(ts);
+        if (Number.isFinite(n) && n > 0 && n < 1e12) {
+          ts = n * 1000;
+        }
+        const val = p.value;
+        out.push({ ts, value: val });
       }
       out.sort((a, b) => a.ts - b.ts);
       return out;
     },
 
-	//格式化时间格式
     formatTick(ts, days) {
       const d = new Date(ts);
-      const h = String(d.getHours()).padStart(2, '0');//padStart确保小时字符串的长度至少为 2 位，不足的话在开头补 0
+      if (Number.isNaN(d.getTime())) return '-';
+      const h = String(d.getHours()).padStart(2, '0');
       const m = String(d.getMinutes()).padStart(2, '0');
-	  const s = String(d.getSeconds()).padStart(2, '0');
+      const s = String(d.getSeconds()).padStart(2, '0');
       const mo = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
       if (days <= 1) return `${h}:${m}:${s}`;
       return `${mo}-${day} ${h}:${m}`;
     },
 
-	//处理响应数据设置给图标参数
     buildRuntimeChart(points) {
       const cats = points.map((p) => this.formatTick(p.ts, this.rangeDays));
       const seriesName =
         this.runtimeKind === 'temperature' ? '温度' : '开关';
+      const seriesData = points.map((p) => {
+        if (this.runtimeKind !== 'light') return p.value;
+        const st = this.normalizeSwitchState(p.value);
+        if (st === true) return 1;
+        if (st === false) return 0;
+        const n = Number(p.value);
+        return Number.isFinite(n) ? n : 0;
+      });
       this.runtimeChartData = {
-		  //横坐标时间格式
         categories: cats,
-        series: [{ name: seriesName, data: points.map((p) => p.value) }]
+        series: [{ name: seriesName, data: seriesData }]
       };
     },
 
@@ -489,6 +538,9 @@ export default {
             this.detail = { ...this.detail, deviceStatus: nextStatus };
             this.statusChecked = nextStatus === 'on';
             uni.showToast({ title: '操作成功', icon: 'success' });
+            if (this.runtimeKind && this.id) {
+              this.$nextTick(() => this.fetchRuntimeSeries());
+            }
           } else {
             uni.showToast({ title: '操作失败', icon: 'none' });
           }
@@ -556,13 +608,18 @@ export default {
   background-color: #f5f7fb;
   min-height: 100vh;
   box-sizing: border-box;
+  padding-bottom: constant(safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* 自定义导航栏样式（新增回退图标布局） */
+/* 自定义导航栏：内容区 44px + 动态 paddingTop 状态栏 */
 .custom-nav-bar {
-  height: 44px; /* 适配小程序导航栏高度 */
+  min-height: 44px;
   line-height: 44px;
-  padding: 0 24rpx;
+  padding-left: 24rpx;
+  padding-right: 24rpx;
+  padding-bottom: 0;
+  box-sizing: content-box;
   background-color: #F8F8F8;
   display: flex;
   align-items: center;
@@ -620,6 +677,18 @@ export default {
 
 .delete-icon:active {
   opacity: 0.8;
+}
+
+.page-loading {
+  padding: 120rpx 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-loading-text {
+  font-size: 28rpx;
+  color: #9ca3af;
 }
 
 /* 内容区域（避开导航栏） */
@@ -717,6 +786,16 @@ export default {
   margin-left: 40rpx;
 }
 
+.status-text-on {
+  color: #3b82f6;
+  font-weight: 500;
+}
+
+.status-text-off {
+  color: #6b7280;
+  font-weight: 500;
+}
+
 .section-title {
   font-size: 28rpx;
   font-weight: 500;
@@ -770,6 +849,11 @@ export default {
   box-shadow: 0 2rpx 8rpx rgba(59, 130, 246, 0.15);
 }
 
+.range-tab.disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 .chart-y-label {
   font-size: 22rpx;
   color: #9ca3af;
@@ -803,6 +887,7 @@ export default {
   font-weight: 500;
   color: #111827;
   margin-bottom: 8rpx;
+  text-align: center;
 }
 
 .light-pie-range-hint {
@@ -811,28 +896,36 @@ export default {
   color: #9ca3af;
   margin-bottom: 20rpx;
   line-height: 1.5;
+  text-align: center;
 }
 
+/* 扇形图在左、说明在右同一行（窄屏过窄时允许换行，仍居中） */
 .light-pie-body {
   display: flex;
   flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
   flex-wrap: wrap;
-  gap: 16rpx;
+  align-items: center;
+  justify-content: center;
+  gap: 20rpx 28rpx;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .light-pie-chart-box {
-  width: 320rpx;
-  height: 320rpx;
+  width: 480rpx;
+  height: 480rpx;
   flex-shrink: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .light-pie-stats {
-  flex: 1;
-  min-width: 240rpx;
+  flex: 0 1 210rpx;
+  min-width: 180rpx;
+  max-width: 240rpx;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 24rpx;
 }
 
@@ -840,6 +933,8 @@ export default {
   display: flex;
   flex-direction: row;
   align-items: flex-start;
+  justify-content: flex-start;
+  width: 100%;
 }
 
 .light-pie-stat-dot {
@@ -863,6 +958,9 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  text-align: left;
+  flex: 1;
+  min-width: 0;
 }
 
 .light-pie-stat-name {
@@ -891,9 +989,11 @@ export default {
   font-size: 22rpx;
   color: #9ca3af;
   line-height: 1.5;
+  text-align: center;
 }
 
 .light-pie-empty {
   padding: 32rpx 0 8rpx;
+  text-align: center;
 }
 </style>

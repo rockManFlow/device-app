@@ -71,6 +71,13 @@ const cfu = {
         return series[index].name+'：'+series[index].data+'元'
       }
     },
+    /** 设备详情页灯类开关占比饼图：点击/悬停提示（与 pages/device_detail 中 tooltipFormat 对应） */
+    "lightPieTip": function(item, category, index, opts) {
+      if (!item) return ''
+      if (item.tooltipText) return item.tooltipText
+      if (item.name != null && item.data != null) return item.name + '：' + item.data
+      return ''
+    },
   },
   //这里演示了自定义您的图表类型的option，可以随意命名，之后在组件上 type="demotype" 后，组件会调用这个花括号里的option，如果组件上还存在opts参数，会将demotype与opts中option合并后渲染图表。
   "demotype":{
